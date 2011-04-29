@@ -1,0 +1,42 @@
+./sim wb trace0.txt
+Cache Hits: 710738
+Cache Misses: 30478
+Memory Reads: 30478
+Memory Writes: 12539
+
+./sim wt trace1.txt
+Cache Hits: 664
+Cache Misses: 336
+Memory Reads: 336
+Memory Writes: 334
+
+./sim wb trace1.txt
+Cache Hits: 664
+Cache Misses: 336
+Memory Reads: 336
+Memory Writes: 0
+
+
+./sim wt trace2.txt
+Cache Hits: 6725
+Cache Misses: 3275
+Memory Reads: 3275
+Memory Writes: 2861
+
+./sim wb trace2.txt
+Cache Hits: 6725
+Cache Misses: 3275
+Memory Reads: 3275
+Memory Writes: 1204
+
+./sim wt trace3.txt
+Cache Hits: 796356
+Cache Misses: 203644
+Memory Reads: 203644
+Memory Writes: 345398
+
+./sim wb trace3.txt
+Cache Hits: 796356
+Cache Misses: 203644
+Memory Reads: 203644
+Memory Writes: 155108
