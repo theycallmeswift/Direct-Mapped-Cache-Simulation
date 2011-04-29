@@ -42,6 +42,7 @@
 
 /* Typedefs */
 typedef struct Cache_* Cache;
+typedef struct Block_* Block;
 
 
 /* createCache
@@ -56,6 +57,7 @@ typedef struct Cache_* Cache;
  * @return  success         new Cache
  * @return  failure         NULL
  */
+ 
 Cache createCache(int cache_size, int block_size, int write_policy);
 
 /* destroyCache
@@ -68,7 +70,19 @@ Cache createCache(int cache_size, int block_size, int write_policy);
  *
  * @return  void
  */
+ 
 void destroyCache(Cache cache);
+
+/* printCache
+ *
+ * Prints out the values of each slot in the cache
+ * as well as the hit, miss, read, write, and size
+ * data.
+ *
+ * @param       cache       Cache struct
+ *
+ * @return      void
+ */
 
 void printCache(Cache cache);
 

@@ -25,6 +25,11 @@
 
 /* Structs */
 
+struct Block_ {
+    int valid;
+    char* tag;
+};
+
 struct Cache_ {
     int hits;
     int misses;
@@ -32,15 +37,24 @@ struct Cache_ {
     int writes;
     int cache_size;
     int block_size;
-    int numLines;    
+    int numLines;
+    Block* blocks;    
 };
 
-struct Block_ {
-    int valid;
-    char* tag;
-    char* block;
-};
 
+
+/********************************
+ *      Utility Functions       *
+ ********************************/
+ 
+/* Function List:
+ *
+ * 1) htoi
+ * 2) getBinary
+ * 3) formatBinary
+ * 4) btoi
+ * 5) parseMemoryAddress
+ */
 
 /* htoi
  *
@@ -83,17 +97,12 @@ unsigned int htoi(const char str[])
 /* getBinary
  *
  * Converts an unsigned integer into a string containing it's
- * 32 bit binary representation separated by two spaces for 
- * easier parsing. 
+ * 32 bit long binary representation.
  *
- * Format:
- *  -----------------------------------------------------
- * | Tag: 18 bits | Index: 12 bits | Byte Select: 4 bits |
- *  -----------------------------------------------------
  *
  * @param   num         number to be converted
  *
- * @result  char*       binary string separated by spaces.
+ * @result  char*       binary string
  */
  
 char *getBinary(unsigned int num)
@@ -115,6 +124,25 @@ char *getBinary(unsigned int num)
     
     return bstring;
 }
+
+/* formatBinary
+ *
+ * Converts a 32 bit long binary string to a formatted version
+ * for easier parsing. The format is determined by the TAG, INDEX,
+ * and OFFSET variables.
+ *
+ * Ex. Format:
+ *  -----------------------------------------------------
+ * | Tag: 18 bits | Index: 12 bits | Byte Select: 4 bits |
+ *  -----------------------------------------------------
+ *
+ * Ex. Result:
+ * 000000000010001110 101111011111 00
+ *
+ * @param   bstring     binary string to be converted
+ *
+ * @result  char*       formated binary string
+ */
 
 char *formatBinary(char *bstring)
 {
@@ -150,7 +178,18 @@ char *formatBinary(char *bstring)
     return formatted;
 }
 
-int bin2dec(char *bin)
+/* btoi
+ *
+ * Converts a binary string to an integer. Returns 0 on error.
+ *
+ * src: http://www.daniweb.com/software-development/c/code/216372
+ *
+ * @param   bin     binary string to convert
+ *
+ * @result  int     decimal representation of binary string
+ */
+
+int btoi(char *bin)
 {
     int  b, k, m, n;
     int  len, sum;
@@ -172,6 +211,70 @@ int bin2dec(char *bin)
         sum = sum + n * b;
     }
     return(sum);
+}
+
+/* parseMemoryAddress
+ *
+ * Helper function that takes in a hexidecimal address in
+ * the format of "0x00000000" and spits out the decimal, 
+ * binary, and formatted binary equivilants. Also, it 
+ * calculates the corresponding tag, index, and offset.
+ *
+ * @param       address         Hexidecimal memory address
+ *
+ * @return      void
+ */
+
+void parseMemoryAddress(char *address)
+{
+    unsigned int dec;
+    char *bstring, *bformatted, *tag, *index, *offset;
+    int i;
+    
+    dec = htoi(address);
+    bstring = getBinary(dec);
+    bformatted = formatBinary(bstring);
+    
+    if(DEBUG)
+    {
+        printf("Hex: %s\n", address);
+        printf("Decimal: %u\n", dec);
+        printf("Binary: %s\n", bstring);
+        printf("Formatted: %s\n", bformatted);
+    }
+    
+    i = 0;
+    
+    tag = (char *) malloc( sizeof(char) * (TAG + 1) );
+    assert(tag != NULL);
+    tag[TAG] = '\0';
+    
+    for(i = 0; i < TAG; i++)
+    {
+        tag[i] = bformatted[i];
+    }
+    
+    index = (char *) malloc( sizeof(char) * (INDEX + 1) );
+    assert(index != NULL);
+    index[INDEX] = '\0';
+    
+    for(i = TAG + 1; i < INDEX + TAG + 1; i++)
+    {
+        index[i - TAG - 1] = bformatted[i];
+    }
+    
+    offset = (char *) malloc( sizeof(char) * (OFFSET + 1) );
+    assert(offset != NULL);
+    offset[OFFSET] = '\0';
+    
+    for(i = INDEX + TAG + 2; i < OFFSET + INDEX + TAG + 2; i++)
+    {
+        offset[i - INDEX - TAG - 2] = bformatted[i];
+    }
+    
+    printf("Tag: %s (%i)\n", tag, btoi(tag));
+    printf("Index: %s (%i)\n", index, btoi(index));
+    printf("Offset: %s (%i)\n", offset, btoi(offset));
 }
 
 
@@ -214,16 +317,30 @@ int main(int argc, char **argv)
     cache = createCache(CACHE_SIZE, BLOCK_SIZE, write_policy);
     
     printCache(cache);
+    
+    parseMemoryAddress("0x0023AF7C");
 
     return 1;
 }
+
+/* createCache
+ *
+ * Function to create a new cache struct.  Returns the new struct on success
+ * and NULL on failure.
+ *
+ * @param   cache_size      size of cache in bytes
+ * @param   block_size      size of each block in bytes
+ * @param   write_policy    0 = write through, 1 = write back
+ *
+ * @return  success         new Cache
+ * @return  failure         NULL
+ */
 
 Cache createCache(int cache_size, int block_size, int write_policy)
 {
     /* Local Variables */
     Cache cache;
-    int num;
-    char *bstring;
+    int i;
     
     /* Validate Inputs */
     if(cache_size <= 0)
@@ -263,31 +380,76 @@ Cache createCache(int cache_size, int block_size, int write_policy)
     /* Calculate numLines */
     cache->numLines = (int)(CACHE_SIZE / BLOCK_SIZE);
     
-    bstring = getBinary(htoi("0x0023AF7C"));
-    num = htoi("0x0023AF7C");
+    cache->blocks = (Block*) malloc( sizeof(Block) * cache->numLines );
+    assert(cache->blocks != NULL);
+        
+    /* By default insert blocks where valid = 0 */
+    for(i = 0; i < cache->numLines; i++)
+    {
+        cache->blocks[i] = (Block) malloc( sizeof( struct Block_ ) );
+        assert(cache->blocks[i] != NULL);
+        cache->blocks[i]->valid = 0;
+        cache->blocks[i]->tag = NULL;
+    }
     
-    printf("0x0023AF7C to Decimal: %u\n", num);
-    printf("%u to Binary: %s\n", num, bstring);
-    printf("%s to Decimal: %i\n", bstring, bin2dec(bstring));
- 
-    
-    printf("\n");
     return cache;
 }
 
+/* destroyCache
+ * 
+ * Function that destroys a created cache. Frees all allocated memory. If 
+ * you pass in NULL, nothing happens. So make sure to set your cache = NULL
+ * after you destroy it to prevent a double free.
+ *
+ * @param   cache           cache object to be destroyed
+ *
+ * @return  void
+ */
+
 void destroyCache(Cache cache)
 {
+    int i;
+    
     if(cache != NULL)
     {
+        for( i = 0; i < cache->numLines; i++ )
+        {
+            free(cache->blocks[i]);
+        }
+        free(cache->blocks);
         free(cache);
     }
     return;
 }
 
+/* printCache
+ *
+ * Prints out the values of each slot in the cache
+ * as well as the hit, miss, read, write, and size
+ * data.
+ *
+ * @param       cache       Cache struct
+ *
+ * @return      void
+ */
+
 void printCache(Cache cache)
 {
+    int i;
+    char* tag;
+    
     if(cache != NULL)
-    {
+    {        
+        for(i = 0; i < cache->numLines; i++)
+        {
+            tag = "NULL";
+            if(cache->blocks[i]->tag != NULL)
+            {
+                tag = cache->blocks[i]->tag;
+            }
+            
+            printf("[%i]: { valid: %i, tag: %s }\n", i, cache->blocks[i]->valid, tag);
+        }
         printf("Cache:\n\tCACHE HITS: %i\n\tCACHE MISSES: %i\n\tMEMORY READS: %i\n\tMEMORY WRITES: %i\n\n\tCACHE SIZE: %i Bytes\n\tBLOCK SIZE: %i Bytes\n\tNUM LINES: %i\n", cache->hits, cache->misses, cache->reads, cache->writes, cache->cache_size, cache->block_size, cache->numLines);
     }
 }
