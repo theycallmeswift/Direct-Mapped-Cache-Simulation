@@ -27,8 +27,50 @@
  * Ex. 16kb / 4 Bytes = 4096 Lines
  */
 
+/* Print Debug Messages */
+#define DEBUG 1
+
+/* Cache Sizes (in bytes) */
 #define CACHE_SIZE 16384
 #define BLOCK_SIZE 4
+
+/* Block Sizes */
+#define TAG 18 /* 18 + 0 = 18 */
+#define INDEX 12 /* 18 + 12 = 30 */
+#define OFFSET 2 /* 30 + 2 = 32 */
+
+
+/* Typedefs */
+typedef struct Cache_* Cache;
+
+
+/* createCache
+ *
+ * Function to create a new cache struct.  Returns the new struct on success
+ * and NULL on failure.
+ *
+ * @param   cache_size      size of cache in bytes
+ * @param   block_size      size of each block in bytes
+ * @param   write_policy    0 = write through, 1 = write back
+ *
+ * @return  success         new Cache
+ * @return  failure         NULL
+ */
+Cache createCache(int cache_size, int block_size, int write_policy);
+
+/* destroyCache
+ * 
+ * Function that destroys a created cache. Frees all allocated memory. If 
+ * you pass in NULL, nothing happens. So make sure to set your cache = NULL
+ * after you destroy it to prevent a double free.
+ *
+ * @param   cache           cache object to be destroyed
+ *
+ * @return  void
+ */
+void destroyCache(Cache cache);
+
+void printCache(Cache cache);
 
 
 #endif
