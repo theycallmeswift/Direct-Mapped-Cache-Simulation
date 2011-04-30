@@ -38,6 +38,7 @@ struct Cache_ {
     int cache_size;
     int block_size;
     int numLines;
+    int write_policy;
     Block* blocks;    
 };
 
@@ -281,8 +282,14 @@ void parseMemoryAddress(char *address)
 int main(int argc, char **argv)
 {
     /* Local Variables */
-    int write_policy;
+    int write_policy, counter, i, j;
     Cache cache;
+    FILE *file;
+    char mode, address[100];
+    
+    /* Technically a line shouldn't be longer than 25 characters, but
+       allocate extra space in the buffer just in case */
+    char buffer[LINELENGTH];
     
     /* Help Menu
      *
@@ -313,13 +320,76 @@ int main(int argc, char **argv)
         fprintf(stderr, "Invalid Write Policy.\nUsage: ./sim [-h] <write policy> <trace file>\n");
         return 0;
     }
+    
+    /* Open the file for reading. */
+    file = fopen( argv[2], "r" );
+    if( file == NULL )
+    {
+        fprintf(stderr, "Error: Could not open file.\n");
+        return 0; 
+    }
 
     cache = createCache(CACHE_SIZE, BLOCK_SIZE, write_policy);
     
-    printCache(cache);
+    counter = 0;
     
-    parseMemoryAddress("0x0023AF7C");
-
+    while( fgets(buffer, LINELENGTH, file) != NULL )
+    {
+        if(buffer[0] != '#')
+        {
+            i = 0;
+            while(buffer[i] != ' ')
+            {
+                i++;
+            }
+            
+            mode = buffer[i+1];
+            
+            i = i+2;
+            j = 0;
+            
+            while(buffer[i] != '\0')
+            {
+                address[j] = buffer[i];
+                i++;
+                j++;
+            }
+            
+            address[j-1] = '\0';
+            
+            if(DEBUG) printf("%i: %c %s\n", counter, mode, address);
+            
+            if(mode == 'R')
+            {
+                readFromCache(cache, address);
+            }
+            else if(mode == 'W')
+            {
+                writeToCache(cache, address);
+            }
+            else
+            {
+                printf("%i: ERROR!!!!\n", counter);
+                fclose(file);
+                destroyCache(cache);
+                cache = NULL;
+                
+                return 0;
+            }
+            counter++;
+        }
+    }
+    
+    if(DEBUG) printf("Num Lines: %i\n", counter);
+    
+    printf("CACHE HITS: %i\nCACHE MISSES: %i\nMEMORY READS: %i\nMEMORY WRITES: %i\n", cache->hits, cache->misses, cache->reads, cache->writes);
+    
+    /* Close the file, destroy the cache. */
+    
+    fclose(file);
+    destroyCache(cache);
+    cache = NULL;
+    
     return 1;
 }
 
@@ -374,6 +444,8 @@ Cache createCache(int cache_size, int block_size, int write_policy)
     cache->reads = 0;
     cache->writes = 0;
     
+    cache->write_policy = write_policy;
+    
     cache->cache_size = CACHE_SIZE;
     cache->block_size = BLOCK_SIZE;
     
@@ -414,12 +486,245 @@ void destroyCache(Cache cache)
     {
         for( i = 0; i < cache->numLines; i++ )
         {
+            if(cache->blocks[i]->tag != NULL)
+            {
+                free(cache->blocks[i]->tag);
+            }
+            
             free(cache->blocks[i]);
         }
         free(cache->blocks);
         free(cache);
     }
     return;
+}
+
+/* readFromCache
+ *
+ * Function that reads data from a cache. Returns 0 on failure
+ * or 1 on success. 
+ *
+ * @param       cache       target cache struct
+ * @param       address     hexidecimal address
+ *
+ * @return      success     1
+ * @return      failure     0
+ */
+
+int readFromCache(Cache cache, char* address)
+{
+    unsigned int dec;
+    char *bstring, *bformatted, *tag, *index, *offset;
+    int i;
+    Block block;
+    
+    
+    /* Validate inputs */
+    if(cache == NULL)
+    {
+        fprintf(stderr, "Error: Must supply a valid cache to write to.\n");
+        return 0;
+    }
+    
+    if(address == NULL)
+    {
+        fprintf(stderr, "Error: Must supply a valid memory address.\n");
+        return 0;
+    }
+    
+    /* Convert and parse necessary values */
+    
+    dec = htoi(address);
+    bstring = getBinary(dec);
+    bformatted = formatBinary(bstring);
+    
+    if(DEBUG)
+    {
+        printf("Hex: %s\n", address);
+        printf("Decimal: %u\n", dec);
+        printf("Binary: %s\n", bstring);
+        printf("Formatted: %s\n", bformatted);
+    }
+        
+    i = 0;
+    
+    tag = (char *) malloc( sizeof(char) * (TAG + 1) );
+    assert(tag != NULL);
+    tag[TAG] = '\0';
+    
+    for(i = 0; i < TAG; i++)
+    {
+        tag[i] = bformatted[i];
+    }
+    
+    index = (char *) malloc( sizeof(char) * (INDEX + 1) );
+    assert(index != NULL);
+    index[INDEX] = '\0';
+    
+    for(i = TAG + 1; i < INDEX + TAG + 1; i++)
+    {
+        index[i - TAG - 1] = bformatted[i];
+    }
+    
+    offset = (char *) malloc( sizeof(char) * (OFFSET + 1) );
+    assert(offset != NULL);
+    offset[OFFSET] = '\0';
+    
+    for(i = INDEX + TAG + 2; i < OFFSET + INDEX + TAG + 2; i++)
+    {
+        offset[i - INDEX - TAG - 2] = bformatted[i];
+    }
+    
+    if(DEBUG)
+    {
+        printf("Tag: %s (%i)\n", tag, btoi(tag));
+        printf("Index: %s (%i)\n", index, btoi(index));
+        printf("Offset: %s (%i)\n", offset, btoi(offset));
+    }
+    
+    /* Get the block */
+    
+    block = cache->blocks[btoi(index)];
+    
+    if(DEBUG)
+    {
+        printf("Attempting to read data from cache slot %i.\n", btoi(index));
+    }
+    
+    if(block->valid == 1 && strcmp(block->tag, tag) == 0)
+    {
+        cache->hits++;
+    }
+    else
+    {
+        cache->misses++;
+        cache->reads++;
+        
+        block->valid = 1;
+        block->tag = tag;
+    }
+    
+    
+    free(bstring);
+    free(bformatted);
+    free(offset);
+    free(index);
+    return 1;
+}
+
+/* writeToCache
+ *
+ * Function that writes data to the cache. Returns 0 on failure or
+ * 1 on success. Frees any old tags that already existed in the
+ * target slot.
+ *
+ * @param       cache       target cache struct
+ * @param       address     hexidecimal address
+ *
+ * @return      success     1
+ * @return      error       0
+ */
+
+int writeToCache(Cache cache, char* address)
+{
+    unsigned int dec;
+    char *bstring, *bformatted, *tag, *index, *offset;
+    int i;
+    Block block;
+    
+    
+    /* Validate inputs */
+    if(cache == NULL)
+    {
+        fprintf(stderr, "Error: Must supply a valid cache to write to.\n");
+        return 0;
+    }
+    
+    if(address == NULL)
+    {
+        fprintf(stderr, "Error: Must supply a valid memory address.\n");
+        return 0;
+    }
+    
+    /* Convert and parse necessary values */
+    
+    dec = htoi(address);
+    bstring = getBinary(dec);
+    bformatted = formatBinary(bstring);
+    
+    if(DEBUG)
+    {
+        printf("Hex: %s\n", address);
+        printf("Decimal: %u\n", dec);
+        printf("Binary: %s\n", bstring);
+        printf("Formatted: %s\n", bformatted);
+    }
+        
+    i = 0;
+    
+    tag = (char *) malloc( sizeof(char) * (TAG + 1) );
+    assert(tag != NULL);
+    tag[TAG] = '\0';
+    
+    for(i = 0; i < TAG; i++)
+    {
+        tag[i] = bformatted[i];
+    }
+    
+    index = (char *) malloc( sizeof(char) * (INDEX + 1) );
+    assert(index != NULL);
+    index[INDEX] = '\0';
+    
+    for(i = TAG + 1; i < INDEX + TAG + 1; i++)
+    {
+        index[i - TAG - 1] = bformatted[i];
+    }
+    
+    offset = (char *) malloc( sizeof(char) * (OFFSET + 1) );
+    assert(offset != NULL);
+    offset[OFFSET] = '\0';
+    
+    for(i = INDEX + TAG + 2; i < OFFSET + INDEX + TAG + 2; i++)
+    {
+        offset[i - INDEX - TAG - 2] = bformatted[i];
+    }
+    
+    if(DEBUG)
+    {
+        printf("Tag: %s (%i)\n", tag, btoi(tag));
+        printf("Index: %s (%i)\n", index, btoi(index));
+        printf("Offset: %s (%i)\n", offset, btoi(offset));
+    }
+    
+    /* Get the block */
+    
+    block = cache->blocks[btoi(index)];
+    
+    if(DEBUG)
+    {
+        printf("Attempting to write data to cache slot %i.\n", btoi(index));
+    }
+    
+    if(block->valid == 1 && strcmp(block->tag, tag) == 0)
+    {
+        cache->writes++;
+        cache->hits++;
+    }
+    else
+    {
+        cache->misses++;
+        cache->reads++;
+        cache->writes++;
+        
+        block->valid = 1;
+        block->tag = tag;
+    }
+    
+    free(bstring);
+    free(bformatted);
+    free(offset);
+    free(index);
+    return 1;
 }
 
 /* printCache

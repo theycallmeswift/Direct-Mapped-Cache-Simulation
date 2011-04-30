@@ -1,0 +1,29 @@
+
+
+/****************************
+ *      Write Through       *
+ ****************************/
+
+$ ./bin/sim wt traces/trace0.txt
+CACHE HITS: 710738
+CACHE MISSES: 30478
+MEMORY READS: 30478
+MEMORY WRITES: 238846
+
+$ ./bin/sim wt traces/trace1.txt
+CACHE HITS: 664
+CACHE MISSES: 336
+MEMORY READS: 336
+MEMORY WRITES: 334
+
+$ ./bin/sim wt traces/trace2.txt
+CACHE HITS: 6725
+CACHE MISSES: 3275
+MEMORY READS: 3275
+MEMORY WRITES: 2861
+
+$ ./bin/sim wt traces/trace3.txt
+CACHE HITS: 796356
+CACHE MISSES: 203644
+MEMORY READS: 203644
+MEMORY WRITES: 345398

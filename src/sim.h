@@ -28,7 +28,10 @@
  */
 
 /* Print Debug Messages */
-#define DEBUG 1
+#define DEBUG 0
+
+/* Max Line Length in Trace */
+#define LINELENGTH 128
 
 /* Cache Sizes (in bytes) */
 #define CACHE_SIZE 16384
@@ -72,6 +75,35 @@ Cache createCache(int cache_size, int block_size, int write_policy);
  */
  
 void destroyCache(Cache cache);
+
+/* readFromCache
+ *
+ * Function that reads data from a cache. Returns 0 on failure
+ * or 1 on success. 
+ *
+ * @param       cache       target cache struct
+ * @param       address     hexidecimal address
+ *
+ * @return      success     1
+ * @return      failure     0
+ */
+
+int readFromCache(Cache cache, char* address);
+
+/* writeToCache
+ *
+ * Function that writes data to the cache. Returns 0 on failure or
+ * 1 on success. Frees any old tags that already existed in the
+ * target slot.
+ *
+ * @param       cache       target cache struct
+ * @param       address     hexidecimal address
+ *
+ * @return      success     1
+ * @return      error       0
+ */
+
+int writeToCache(Cache cache, char* address);
 
 /* printCache
  *

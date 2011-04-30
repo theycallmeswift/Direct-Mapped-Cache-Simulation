@@ -1,0 +1,2 @@
+# ignore anything in bin besides the .gitignore file
+bin/sim
