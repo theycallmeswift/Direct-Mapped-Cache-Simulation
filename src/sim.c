@@ -2,7 +2,7 @@
  *
  * Author: Mike Swift <theycallmeswift@gmail.com>
  * Date Created: April 28th, 2011
- * Date Modified: April 28th, 2011
+ * Date Modified: May 1st, 2011
  * 
  * This is a program that simulates a cache using a trace file 
  * and either a write through or write back policy.
@@ -14,7 +14,30 @@
  *      wb - simulate a write back cache
  *
  * <trace file> is the name of a file that contains a memory access trace.
+ *
+ * Table of Contents:
+ *      1. Includes
+ *      2. Structs
+ *          -Block
+ *          -Cache
+ *      3. Utility Functions
+ *          -htoi
+ *          -getBinary
+ *          -formatBinary
+ *          -btoi
+ *          -parseMemoryAddress
+ *      4. Main Function
+ *      5. Cache Functions
+ *          -createCache
+ *          -destroyCache
+ *          -readFromCache
+ *          -writeToCache
+ *          -printCache
  */
+ 
+/********************************
+ *     1. Includes              *
+ ********************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,12 +46,38 @@
 #include <ctype.h>
 #include "sim.h"
 
-/* Structs */
+/********************************
+ *        2. Structs            *
+ ********************************/
+
+/* Block
+ *
+ * Holds an integer that states the validity of the bit (0 = invalid,
+ * 1 = valid), the tag being held, and another integer that states if
+ * the bit is dirty or not (0 = clean, 1 = dirty).
+ */
 
 struct Block_ {
     int valid;
     char* tag;
+    int dirty;
 };
+
+/* Cache
+ *
+ * Cache object that holds all the data about cache access as well as 
+ * the write policy, sizes, and an array of blocks.
+ *
+ * @param   hits            # of cache accesses that hit valid data
+ * @param   misses          # of cache accesses that missed valid data
+ * @param   reads           # of reads from main memory
+ * @param   writes          # of writes from main memory
+ * @param   cache_size      Total size of the cache in bytes
+ * @param   block_size      How big each block of data should be
+ * @param   numLines        Total number of blocks
+ * @param   blocks          The actual array of blocks  
+ */
+
 
 struct Cache_ {
     int hits;
@@ -45,7 +94,7 @@ struct Cache_ {
 
 
 /********************************
- *      Utility Functions       *
+ *     3. Utility Functions     *
  ********************************/
  
 /* Function List:
@@ -278,6 +327,22 @@ void parseMemoryAddress(char *address)
     printf("Offset: %s (%i)\n", offset, btoi(offset));
 }
 
+/********************************
+ *        4. Main Function      *
+ ********************************/
+ 
+/*
+ * Algorithm:
+ *  1. Validate inputs
+ *  2. Open the trace file for reading
+ *  3. Create a new cache object
+ *  4. Read a line from the file
+ *  5. Parse the line and read or write accordingly
+ *  6. If the line is "#eof" continue, otherwise go back to step 4 
+ *  7. Print the results
+ *  8. Destroy the cache object
+ *  9. Close the file
+ */
 
 int main(int argc, char **argv)
 {
@@ -393,6 +458,20 @@ int main(int argc, char **argv)
     return 1;
 }
 
+/********************************
+ *     5. Cache Functions       *
+ ********************************/
+ 
+/* Function List:
+ *
+ * 1) createCache
+ * 2) destroyCache
+ * 3) readFromCache
+ * 4) writeToCache
+ * 5) printCache
+ */
+
+
 /* createCache
  *
  * Function to create a new cache struct.  Returns the new struct on success
@@ -461,6 +540,7 @@ Cache createCache(int cache_size, int block_size, int write_policy)
         cache->blocks[i] = (Block) malloc( sizeof( struct Block_ ) );
         assert(cache->blocks[i] != NULL);
         cache->blocks[i]->valid = 0;
+        cache->blocks[i]->dirty = 0;
         cache->blocks[i]->tag = NULL;
     }
     
@@ -594,13 +674,26 @@ int readFromCache(Cache cache, char* address)
     if(block->valid == 1 && strcmp(block->tag, tag) == 0)
     {
         cache->hits++;
+        free(tag);
     }
     else
-    {
+    {        
         cache->misses++;
         cache->reads++;
         
+        if(cache->write_policy == 1 && block->dirty == 1)
+        {
+            cache->writes++;
+            block->dirty = 0;
+        }
+        
         block->valid = 1;
+        
+        if(block->tag != NULL)
+        {
+            free(block->tag);
+        }
+        
         block->tag = tag;
     }
     
@@ -707,16 +800,38 @@ int writeToCache(Cache cache, char* address)
     
     if(block->valid == 1 && strcmp(block->tag, tag) == 0)
     {
-        cache->writes++;
+        if(cache->write_policy == 0)
+        {
+            cache->writes++;
+        }
+        block->dirty = 1;
         cache->hits++;
+        free(tag);
     }
     else
     {
         cache->misses++;
         cache->reads++;
-        cache->writes++;
+        
+        if(cache->write_policy == 0)
+        {
+            cache->writes++;
+        }
+        
+        if(cache->write_policy == 1 && block->dirty == 1)
+        {
+            cache->writes++;
+        }        
+        
+        block->dirty = 1;
         
         block->valid = 1;
+        
+        if(block->tag != NULL)
+        {
+            free(block->tag);
+        }
+        
         block->tag = tag;
     }
     

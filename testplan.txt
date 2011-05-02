@@ -1,3 +1,30 @@
+/****************************
+ *      Write Behind        *
+ ****************************/
+
+$ ./bin/sim wb traces/trace0.txt
+CACHE HITS: 710738
+CACHE MISSES: 30478
+MEMORY READS: 30478
+MEMORY WRITES: 12539
+
+$ ./bin/sim wb traces/trace1.txt
+CACHE HITS: 664
+CACHE MISSES: 336
+MEMORY READS: 336
+MEMORY WRITES: 0
+
+$ ./bin/sim wb traces/trace2.txt
+CACHE HITS: 6725
+CACHE MISSES: 3275
+MEMORY READS: 3275
+MEMORY WRITES: 1204
+
+$ ./bin/sim wb traces/trace3.txt
+CACHE HITS: 796356
+CACHE MISSES: 203644
+MEMORY READS: 203644
+MEMORY WRITES: 155108
 
 
 /****************************
