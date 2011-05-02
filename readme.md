@@ -1,5 +1,3 @@
-﻿# Readme.pdf
----
 ## Project Info:   
 	**Author:** Mike Swift <theycallmeswift@gmail.com>   
 	**Date Created:** April 28th, 2011   
